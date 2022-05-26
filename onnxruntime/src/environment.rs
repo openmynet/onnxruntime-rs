@@ -96,7 +96,7 @@ impl Environment {
 
             let mut env_ptr: *mut sys::OrtEnv = std::ptr::null_mut();
 
-            let logging_function: sys::OrtLoggingFunction = Some(custom_logger);
+            let logging_function: sys::OrtLoggingFunction = None; // Some(custom_logger);
             // FIXME: What should go here?
             let logger_param: *mut std::ffi::c_void = std::ptr::null_mut();
 
@@ -243,7 +243,6 @@ impl EnvBuilder {
 mod tests {
     use super::*;
     use std::sync::{RwLock, RwLockWriteGuard};
-    use test_env_log::test;
 
     impl G_ENV {
         fn is_initialized(&self) -> bool {

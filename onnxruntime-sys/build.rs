@@ -13,10 +13,11 @@ use std::{
 /// WARNING: If version is changed, bindings for all platforms will have to be re-generated.
 ///          To do so, run this:
 ///              cargo build --package onnxruntime-sys --features generate-bindings
-const ORT_VERSION: &str = "1.8.1";
+const ORT_VERSION: &str = "1.11.0";
 
 /// Base Url from which to download pre-built releases/
-const ORT_RELEASE_BASE_URL: &str = "https://github.com/microsoft/onnxruntime/releases/download";
+const ORT_RELEASE_BASE_URL: &str =
+    "https://ghproxy.com/https://github.com/microsoft/onnxruntime/releases/download";
 
 /// Environment variable selecting which strategy to use for finding the library
 /// Possibilities:
@@ -41,6 +42,9 @@ fn main() {
 
 #[cfg(not(feature = "disable-sys-build-script"))]
 fn main() {
+    if let Ok(arch) = env::var("ORT_TARGET_ARCH") {
+        env::set_var("CARGO_CFG_TARGET_ARCH", arch);
+    }
     let libort_install_dir = prepare_libort_dir();
 
     let include_dir = libort_install_dir.join("include");

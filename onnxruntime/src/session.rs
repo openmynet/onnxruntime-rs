@@ -375,6 +375,7 @@ impl<'a> Session<'a> {
     ///
     /// Note that ONNX models can have multiple inputs; a `Vec<_>` is thus
     /// used for the input data here.
+    #[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
     pub fn run<'s, 't, 'm, TIn, TOut, D>(
         &'s mut self,
         input_arrays: Vec<Array<TIn, D>>,
@@ -468,6 +469,107 @@ impl<'a> Session<'a> {
             .map(|p| {
                 assert_not_null_pointer(p, "i8 for CString")?;
                 unsafe { Ok(CString::from_raw(p as *mut i8)) }
+            })
+            .collect();
+        cstrings?;
+
+        outputs
+    }
+    
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    pub fn run<'s, 't, 'm, TIn, TOut, D>(
+        &'s mut self,
+        input_arrays: Vec<Array<TIn, D>>,
+    ) -> Result<Vec<OrtOwnedTensor<'t, 'm, TOut, ndarray::IxDyn>>>
+    where
+        TIn: TypeToTensorElementDataType + Debug + Clone,
+        TOut: TypeToTensorElementDataType + Debug + Clone,
+        D: ndarray::Dimension,
+        'm: 't, // 'm outlives 't (memory info outlives tensor)
+        's: 'm, // 's outlives 'm (session outlives memory info)
+    {
+        self.validate_input_shapes(&input_arrays)?;
+
+        // Build arguments to Run()
+
+        let input_names_ptr: Vec<*const u8> = self
+            .inputs
+            .iter()
+            .map(|input| input.name.clone())
+            .map(|n| CString::new(n).unwrap())
+            .map(|n| n.into_raw() as *const u8)
+            .collect();
+
+        let output_names_cstring: Vec<CString> = self
+            .outputs
+            .iter()
+            .map(|output| output.name.clone())
+            .map(|n| CString::new(n).unwrap())
+            .collect();
+        let output_names_ptr: Vec<*const u8> = output_names_cstring
+            .iter()
+            .map(|n| n.as_ptr() as *const u8)
+            .collect();
+
+        let mut output_tensor_extractors_ptrs: Vec<*mut sys::OrtValue> =
+            vec![std::ptr::null_mut(); self.outputs.len()];
+
+        // The C API expects pointers for the arrays (pointers to C-arrays)
+        let input_ort_tensors: Vec<OrtTensor<TIn, D>> = input_arrays
+            .into_iter()
+            .map(|input_array| {
+                OrtTensor::from_array(&self.memory_info, self.allocator_ptr, input_array)
+            })
+            .collect::<Result<Vec<OrtTensor<TIn, D>>>>()?;
+        let input_ort_values: Vec<*const sys::OrtValue> = input_ort_tensors
+            .iter()
+            .map(|input_array_ort| input_array_ort.c_ptr as *const sys::OrtValue)
+            .collect();
+
+        let run_options_ptr: *const sys::OrtRunOptions = std::ptr::null();
+
+        let status = unsafe {
+            g_ort().Run.unwrap()(
+                self.session_ptr,
+                run_options_ptr,
+                input_names_ptr.as_ptr(),
+                input_ort_values.as_ptr(),
+                input_ort_values.len(),
+                output_names_ptr.as_ptr(),
+                output_names_ptr.len(),
+                output_tensor_extractors_ptrs.as_mut_ptr(),
+            )
+        };
+        status_to_result(status).map_err(OrtError::Run)?;
+
+        let memory_info_ref = &self.memory_info;
+        let outputs: Result<Vec<OrtOwnedTensor<TOut, ndarray::Dim<ndarray::IxDynImpl>>>> =
+            output_tensor_extractors_ptrs
+                .into_iter()
+                .map(|ptr| {
+                    let mut tensor_info_ptr: *mut sys::OrtTensorTypeAndShapeInfo =
+                        std::ptr::null_mut();
+                    let status = unsafe {
+                        g_ort().GetTensorTypeAndShape.unwrap()(ptr, &mut tensor_info_ptr as _)
+                    };
+                    status_to_result(status).map_err(OrtError::GetTensorTypeAndShape)?;
+                    let dims = unsafe { get_tensor_dimensions(tensor_info_ptr) };
+                    unsafe { g_ort().ReleaseTensorTypeAndShapeInfo.unwrap()(tensor_info_ptr) };
+                    let dims: Vec<_> = dims?.iter().map(|&n| n as usize).collect();
+
+                    let mut output_tensor_extractor =
+                        OrtOwnedTensorExtractor::new(memory_info_ref, ndarray::IxDyn(&dims));
+                    output_tensor_extractor.tensor_ptr = ptr;
+                    output_tensor_extractor.extract::<TOut>()
+                })
+                .collect();
+
+        // Reconvert to CString so drop impl is called and memory is freed
+        let cstrings: Result<Vec<CString>> = input_names_ptr
+            .into_iter()
+            .map(|p| {
+                assert_not_null_pointer(p, "u8 for CString")?;
+                unsafe { Ok(CString::from_raw(p as *mut u8)) }
             })
             .collect();
         cstrings?;
@@ -640,7 +742,7 @@ mod dangerous {
         let f = g_ort().SessionGetOutputName.unwrap();
         extract_io_name(f, session_ptr, allocator_ptr, i)
     }
-
+    #[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
     fn extract_io_name(
         f: extern_system_fn! { unsafe fn(
             *const sys::OrtSession,
@@ -653,6 +755,29 @@ mod dangerous {
         i: usize,
     ) -> Result<String> {
         let mut name_bytes: *mut i8 = std::ptr::null_mut();
+
+        let status = unsafe { f(session_ptr, i, allocator_ptr, &mut name_bytes) };
+        status_to_result(status).map_err(OrtError::InputName)?;
+        assert_not_null_pointer(name_bytes, "InputName")?;
+
+        // FIXME: Is it safe to keep ownership of the memory?
+        let name = char_p_to_string(name_bytes)?;
+
+        Ok(name)
+    }
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    fn extract_io_name(
+        f: extern_system_fn! { unsafe fn(
+            *const sys::OrtSession,
+            usize,
+            *mut sys::OrtAllocator,
+            *mut *mut u8,
+        ) -> *mut sys::OrtStatus },
+        session_ptr: *mut sys::OrtSession,
+        allocator_ptr: *mut sys::OrtAllocator,
+        i: usize,
+    ) -> Result<String> {
+        let mut name_bytes: *mut u8 = std::ptr::null_mut();
 
         let status = unsafe { f(session_ptr, i, allocator_ptr, &mut name_bytes) };
         status_to_result(status).map_err(OrtError::InputName)?;

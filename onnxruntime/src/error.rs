@@ -204,11 +204,29 @@ pub(crate) fn assert_not_null_pointer<T>(ptr: *const T, name: &str) -> Result<()
 }
 
 impl From<OrtStatusWrapper> for std::result::Result<(), OrtApiError> {
+    #[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
     fn from(status: OrtStatusWrapper) -> Self {
         if status.0.is_null() {
             Ok(())
         } else {
             let raw: *const i8 = unsafe { g_ort().GetErrorMessage.unwrap()(status.0) };
+            match char_p_to_string(raw) {
+                Ok(msg) => Err(OrtApiError::Msg(msg)),
+                Err(err) => match err {
+                    OrtError::StringConversion(OrtApiError::IntoStringError(e)) => {
+                        Err(OrtApiError::IntoStringError(e))
+                    }
+                    _ => unreachable!(),
+                },
+            }
+        }
+    }
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    fn from(status: OrtStatusWrapper) -> Self {
+        if status.0.is_null() {
+            Ok(())
+        } else {
+            let raw: *const u8 = unsafe { g_ort().GetErrorMessage.unwrap()(status.0) };
             match char_p_to_string(raw) {
                 Ok(msg) => Err(OrtApiError::Msg(msg)),
                 Err(err) => match err {

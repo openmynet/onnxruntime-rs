@@ -11,8 +11,8 @@ This is an attempt at a Rust wrapper for
 
 This project consist on two crates:
 
-* [`onnxruntime-sys`](onnxruntime-sys): Low-level binding to the C API;
-* [`onnxruntime`](onnxruntime): High-level and safe API.
+- [`onnxruntime-sys`](onnxruntime-sys): Low-level binding to the C API;
+- [`onnxruntime`](onnxruntime): High-level and safe API.
 
 [Changelog](CHANGELOG.md)
 
@@ -21,25 +21,27 @@ which provides the following targets:
 
 CPU:
 
-* Linux x86_64
-* macOS x86_64
-* macOS aarch64 (no pre-built binaries, no CI testing, see [#74](https://github.com/nbigaouette/onnxruntime-rs/pull/74))
-* Windows i686
-* Windows x86_64
+- Linux x86_64
+- Linux i686 (x86)
+- Linux aarch64
+- macOS x86_64
+- macOS aarch64 (no pre-built binaries, no CI testing, see [#74](https://github.com/nbigaouette/onnxruntime-rs/pull/74))
+- Windows i686 (x86)
+- Windows x86_64
 
 GPU:
 
-* Linux x86_64
-* Windows x86_64
+- Linux x86_64
+- Windows x86_64
 
 ---
 
 **WARNING**:
 
-* This is an experiment and work in progress; it is _not_ complete/working/safe. Help welcome!
-* Basic inference works, see [`onnxruntime/examples/sample.rs`](onnxruntime/examples/sample.rs) or [`onnxruntime/tests/integration_tests.rs`](onnxruntime/tests/integration_tests.rs)
-* ONNX Runtime has many options to control the inference process but those options are not yet exposed.
-* This was developed and tested on macOS Catalina. Other platforms should work but have not been tested.
+- This is an experiment and work in progress; it is _not_ complete/working/safe. Help welcome!
+- Basic inference works, see [`onnxruntime/examples/sample.rs`](onnxruntime/examples/sample.rs) or [`onnxruntime/tests/integration_tests.rs`](onnxruntime/tests/integration_tests.rs)
+- ONNX Runtime has many options to control the inference process but those options are not yet exposed.
+- This was developed and tested on macOS Catalina. Other platforms should work but have not been tested.
 
 ---
 
@@ -60,6 +62,8 @@ To select which strategy to use, set the `ORT_STRATEGY` environment variable to:
 The `download` strategy supports downloading a version of ONNX that supports CUDA. To use this, set the
 environment variable `ORT_USE_CUDA=1` (only supports Linux or Windows).
 
+environment variable `ORT_TARGET_ARCH=aarch64` (specified architecture in cross Compile ).
+
 Until the build script allow compilation of the runtime, see the [compilation notes](ONNX_Compilation_Notes.md)
 for some details on the process.
 
@@ -76,9 +80,9 @@ dyld: Library not loaded: @rpath/libonnxruntime.1.7.1.dylib
 
 To fix, one can either:
 
-* Set the `LD_LIBRARY_PATH` environment variable to point to the path where the library can be found.
-* Adapt the `.cargo/config` file to contain a linker flag to provide the **full** path:
-  
+- Set the `LD_LIBRARY_PATH` environment variable to point to the path where the library can be found.
+- Adapt the `.cargo/config` file to contain a linker flag to provide the **full** path:
+
   ```toml
   [target.aarch64-apple-darwin]
   rustflags = ["-C", "link-args=-Wl,-rpath,/full/path/to/onnxruntime/lib"]
@@ -259,9 +263,9 @@ instead of the Rust moderation team.
 
 This project is licensed under either of
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
   http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or
   http://opensource.org/licenses/MIT)
 
 at your option.

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.14] - 2022-05-26
+
+### Changed
+
+- Update to OnnxRuntime v1.11.0
+- support aarch64 architecture
+- support specify architecture
+
+Compile aarch64 cross-platform in linux_x64
+
+```bash
+export ORT_STRATEGY="system"
+export ORT_LIB_LOCATION="/home/rust/src/onnxruntime-linux-aarch64-1.11.0"
+export LD_LIBRARY_PATH=/home/rust/src/onnxruntime-linux-aarch64-1.11.0/lib:$LD_LIBRARY_PATH
+export BINDGEN_EXTRA_CLANG_ARGS="--target=aarch64-unknown-linux-gnu --sysroot=/usr/aarch64-linux-gnu -I/usr/aarch64-linux-gnu/include"
+export ORT_TARGET_ARCH="aarch64"
+# cargo build --release
+```
+
 ## [0.0.14] - 2021-08-01
 
 ### Changed
@@ -89,7 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial working version
 
-[Unreleased]: https://github.com/nbigaouette/onnxruntime-rs/compare/v0.0.12...HEAD
+[unreleased]: https://github.com/nbigaouette/onnxruntime-rs/compare/v0.0.12...HEAD
 [0.0.12]: https://github.com/nbigaouette/onnxruntime-rs/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/nbigaouette/onnxruntime-rs/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/nbigaouette/onnxruntime-rs/compare/v0.0.9...v0.0.10
